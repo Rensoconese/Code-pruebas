@@ -40,7 +40,7 @@
 </head>
 <body>
     <div id="info">
-        <strong>Parcela de Tierra Isométrica</strong><br>
+        <strong>Grilla de Parcelas 10x10</strong><br>
         Usa la rueda del mouse para zoom | Arrastra para panear
     </div>
 
@@ -59,7 +59,7 @@
 
             // Configurar cámara ortográfica para vista isométrica
             const aspect = window.innerWidth / window.innerHeight;
-            const frustumSize = 5;
+            const frustumSize = 15; // Aumentado para ver toda la grilla
             camera = new THREE.OrthographicCamera(
                 frustumSize * aspect / -2,  // left
                 frustumSize * aspect / 2,   // right
@@ -70,7 +70,7 @@
             );
 
             // Posicionar la cámara para vista isométrica (ángulo 45°)
-            camera.position.set(5, 5, 5);
+            camera.position.set(15, 15, 15);
             camera.lookAt(0, 0, 0);
 
             // Crear el renderer
@@ -80,17 +80,17 @@
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             document.body.appendChild(renderer.domElement);
 
-            // Crear función para geometría redondeada
+            // Función para crear geometría redondeada (usando width, height, depth como X, Y, Z)
             function createRoundedBox(width, height, depth, radius, smoothness) {
                 let shape = new THREE.Shape();
                 let eps = 0.00001;
                 let radius0 = radius - eps;
                 shape.absarc(eps, eps, eps, -Math.PI / 2, -Math.PI, true);
-                shape.absarc(eps, height - radius * 2, eps, Math.PI, Math.PI / 2, true);
-                shape.absarc(width - radius * 2, height - radius * 2, eps, Math.PI / 2, 0, true);
-                shape.absarc(width - radius * 2, eps, eps, 0, -Math.PI / 2, true);
+                shape.absarc(eps, width - radius * 2, eps, Math.PI, Math.PI / 2, true);
+                shape.absarc(depth - radius * 2, width - radius * 2, eps, Math.PI / 2, 0, true);
+                shape.absarc(depth - radius * 2, eps, eps, 0, -Math.PI / 2, true);
                 let geometry = new THREE.ExtrudeBufferGeometry(shape, {
-                    depth: depth - radius0 * 2,
+                    depth: height - radius0 * 2,
                     bevelEnabled: true,
                     bevelSegments: smoothness * 2,
                     steps: 1,
@@ -99,60 +99,88 @@
                     curveSegments: smoothness
                 });
                 geometry.center();
+                // Rotar para alinear correctamente con los ejes
+                geometry.rotateX(Math.PI / 2);
                 return geometry;
             }
 
-            // Crear grupo para la parcela de tierra
-            landPlot = new THREE.Group();
+            // Parámetros de cada parcela
+            const plotWidth = 2;     // X
+            const plotHeight = 0.6;  // Y - MÁS CORTO (corregido)
+            const plotDepth = 2;     // Z
+            const cornerRadius = 0.12;
+            const smoothness = 6;
+            const gridSize = 10;     // Grilla de 10x10
+            const spacing = 2.3;     // Espaciado entre parcelas
 
-            // Parámetros de la parcela
-            const plotWidth = 2;
-            const plotHeight = 2;
-            const plotDepth = 0.6; // Más corto en Z
-            const cornerRadius = 0.15; // Redondeo en las esquinas
-            const smoothness = 8;
+            // Crear geometrías para las dos partes
+            const topHeight = plotHeight * 0.3;
+            const bottomHeight = plotHeight * 0.7;
 
-            // Parte superior (verde - césped)
-            const topHeight = plotHeight * 0.25;
             const topGeometry = createRoundedBox(plotWidth, topHeight, plotDepth, cornerRadius, smoothness);
-            const topMaterial = new THREE.MeshPhongMaterial({
-                color: 0x4CAF50, // Verde césped
-                shininess: 30,
-                specular: 0x222222,
-                flatShading: false
-            });
-            const topPart = new THREE.Mesh(topGeometry, topMaterial);
-            topPart.position.y = plotHeight * 0.375;
-            topPart.castShadow = true;
-            topPart.receiveShadow = true;
-            landPlot.add(topPart);
-
-            // Parte inferior (marrón - tierra)
-            const bottomHeight = plotHeight * 0.75;
             const bottomGeometry = createRoundedBox(plotWidth, bottomHeight, plotDepth, cornerRadius, smoothness);
-            const bottomMaterial = new THREE.MeshPhongMaterial({
-                color: 0x8B4513, // Marrón tierra
-                shininess: 20,
-                specular: 0x111111,
-                flatShading: false
+
+            // Materiales
+            const grassMaterial = new THREE.MeshPhongMaterial({
+                color: 0x4CAF50,
+                shininess: 30,
+                specular: 0x222222
             });
-            const bottomPart = new THREE.Mesh(bottomGeometry, bottomMaterial);
-            bottomPart.position.y = -plotHeight * 0.125;
-            bottomPart.castShadow = true;
-            bottomPart.receiveShadow = true;
-            landPlot.add(bottomPart);
 
-            scene.add(landPlot);
+            const soilMaterial = new THREE.MeshPhongMaterial({
+                color: 0x8B4513,
+                shininess: 20,
+                specular: 0x111111
+            });
 
-            // Añadir un plano como suelo
-            const planeGeometry = new THREE.PlaneGeometry(10, 10);
+            // Crear instancias para la parte superior (césped)
+            const topInstancedMesh = new THREE.InstancedMesh(topGeometry, grassMaterial, gridSize * gridSize);
+            topInstancedMesh.castShadow = true;
+            topInstancedMesh.receiveShadow = true;
+
+            // Crear instancias para la parte inferior (tierra)
+            const bottomInstancedMesh = new THREE.InstancedMesh(bottomGeometry, soilMaterial, gridSize * gridSize);
+            bottomInstancedMesh.castShadow = true;
+            bottomInstancedMesh.receiveShadow = true;
+
+            // Posicionar todas las instancias en una grilla
+            const matrix = new THREE.Matrix4();
+            const offsetX = -(gridSize - 1) * spacing / 2;
+            const offsetZ = -(gridSize - 1) * spacing / 2;
+
+            let instanceIndex = 0;
+            for (let x = 0; x < gridSize; x++) {
+                for (let z = 0; z < gridSize; z++) {
+                    const posX = offsetX + x * spacing;
+                    const posZ = offsetZ + z * spacing;
+
+                    // Posicionar parte superior (césped)
+                    matrix.setPosition(posX, topHeight * 0.5, posZ);
+                    topInstancedMesh.setMatrixAt(instanceIndex, matrix);
+
+                    // Posicionar parte inferior (tierra)
+                    matrix.setPosition(posX, -bottomHeight * 0.5, posZ);
+                    bottomInstancedMesh.setMatrixAt(instanceIndex, matrix);
+
+                    instanceIndex++;
+                }
+            }
+
+            topInstancedMesh.instanceMatrix.needsUpdate = true;
+            bottomInstancedMesh.instanceMatrix.needsUpdate = true;
+
+            scene.add(topInstancedMesh);
+            scene.add(bottomInstancedMesh);
+
+            // Añadir un plano como suelo (más grande para la grilla)
+            const planeGeometry = new THREE.PlaneGeometry(50, 50);
             const planeMaterial = new THREE.MeshPhongMaterial({
-                color: 0x808080,
+                color: 0x2d2d2d,
                 side: THREE.DoubleSide
             });
             const plane = new THREE.Mesh(planeGeometry, planeMaterial);
             plane.rotation.x = Math.PI / 2;
-            plane.position.y = -1.5;
+            plane.position.y = -plotHeight;
             plane.receiveShadow = true;
             scene.add(plane);
 
@@ -191,7 +219,7 @@
 
         function onWindowResize() {
             const aspect = window.innerWidth / window.innerHeight;
-            const frustumSize = 5;
+            const frustumSize = 15;
 
             camera.left = frustumSize * aspect / -2;
             camera.right = frustumSize * aspect / 2;
