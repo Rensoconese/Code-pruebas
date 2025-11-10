@@ -40,7 +40,7 @@
 </head>
 <body>
     <div id="info">
-        <strong>Grilla de Parcelas 10x10</strong><br>
+        <strong>Grilla de Parcelas 10x10 con Árboles</strong><br>
         Usa la rueda del mouse para zoom | Arrastra para panear
     </div>
 
@@ -108,10 +108,10 @@
             const plotWidth = 2;     // X
             const plotHeight = 0.6;  // Y - MÁS CORTO (corregido)
             const plotDepth = 2;     // Z
-            const cornerRadius = 0.12;
-            const smoothness = 6;
+            const cornerRadius = 0.04; // Menos redondeado
+            const smoothness = 4;
             const gridSize = 10;     // Grilla de 10x10
-            const spacing = 2.3;     // Espaciado entre parcelas
+            const spacing = 2.05;    // Más pegadas
 
             // Crear geometrías para las dos partes
             const topHeight = plotHeight * 0.3;
@@ -171,6 +171,68 @@
 
             scene.add(topInstancedMesh);
             scene.add(bottomInstancedMesh);
+
+            // Crear árboles (pirámides) en una grilla 3x3 sobre cada parcela
+            const treeGridSize = 3; // 3x3 árboles por parcela
+            const totalTrees = gridSize * gridSize * treeGridSize * treeGridSize; // 10x10 x 3x3 = 900 árboles
+
+            // Geometría del árbol (cono/pirámide)
+            const treeGeometry = new THREE.ConeGeometry(0.15, 0.4, 4); // Radio base, altura, segmentos
+            const treeMaterial = new THREE.MeshPhongMaterial({
+                color: 0x1B5E20, // Verde oscuro
+                flatShading: true,
+                shininess: 10
+            });
+
+            // Crear InstancedMesh para todos los árboles
+            const treesInstancedMesh = new THREE.InstancedMesh(treeGeometry, treeMaterial, totalTrees);
+            treesInstancedMesh.castShadow = true;
+            treesInstancedMesh.receiveShadow = true;
+
+            // Posicionar árboles
+            let treeIndex = 0;
+            const treeMatrix = new THREE.Matrix4();
+            const treeScale = new THREE.Vector3();
+
+            // Espaciado de árboles dentro de cada parcela
+            const treeSpacing = plotWidth / (treeGridSize + 1);
+
+            for (let px = 0; px < gridSize; px++) {
+                for (let pz = 0; pz < gridSize; pz++) {
+                    // Posición base de la parcela
+                    const basePosX = offsetX + px * spacing;
+                    const basePosZ = offsetZ + pz * spacing;
+
+                    // Colocar 3x3 árboles en esta parcela
+                    for (let tx = 0; tx < treeGridSize; tx++) {
+                        for (let tz = 0; tz < treeGridSize; tz++) {
+                            // Posición del árbol dentro de la parcela
+                            const treePosX = basePosX - plotWidth/2 + treeSpacing * (tx + 1);
+                            const treePosZ = basePosZ - plotDepth/2 + treeSpacing * (tz + 1);
+
+                            // Altura variable de árboles (entre 0.3 y 0.6)
+                            const treeHeight = 0.3 + Math.random() * 0.3;
+                            const scaleY = treeHeight / 0.4; // 0.4 es la altura base
+
+                            // Pequeña variación en escala X/Z
+                            const scaleXZ = 0.8 + Math.random() * 0.4;
+
+                            treeScale.set(scaleXZ, scaleY, scaleXZ);
+                            treeMatrix.compose(
+                                new THREE.Vector3(treePosX, topHeight + treeHeight/2, treePosZ),
+                                new THREE.Quaternion(),
+                                treeScale
+                            );
+
+                            treesInstancedMesh.setMatrixAt(treeIndex, treeMatrix);
+                            treeIndex++;
+                        }
+                    }
+                }
+            }
+
+            treesInstancedMesh.instanceMatrix.needsUpdate = true;
+            scene.add(treesInstancedMesh);
 
             // Añadir un plano como suelo (más grande para la grilla)
             const planeGeometry = new THREE.PlaneGeometry(50, 50);
