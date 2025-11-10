@@ -40,16 +40,17 @@
 </head>
 <body>
     <div id="info">
-        <strong>Vista Isométrica - Cubo 3D</strong><br>
-        Estilo Age of Empires - Vista Fija
+        <strong>Parcela de Tierra Isométrica</strong><br>
+        Usa la rueda del mouse para zoom | Arrastra para panear
     </div>
 
     <!-- Three.js desde CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
     <script>
         // Configuración de la escena
-        let scene, camera, renderer, cube;
+        let scene, camera, renderer, landPlot, controls;
 
         function init() {
             // Crear la escena
@@ -79,23 +80,69 @@
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             document.body.appendChild(renderer.domElement);
 
-            // Crear el cubo
-            const geometry = new THREE.BoxGeometry(2, 2, 2);
-            const material = new THREE.MeshPhongMaterial({
-                color: 0x00ff88,
-                shininess: 100,
-                specular: 0x555555
-            });
-            cube = new THREE.Mesh(geometry, material);
-            cube.castShadow = true;
-            cube.receiveShadow = true;
-            scene.add(cube);
+            // Crear función para geometría redondeada
+            function createRoundedBox(width, height, depth, radius, smoothness) {
+                let shape = new THREE.Shape();
+                let eps = 0.00001;
+                let radius0 = radius - eps;
+                shape.absarc(eps, eps, eps, -Math.PI / 2, -Math.PI, true);
+                shape.absarc(eps, height - radius * 2, eps, Math.PI, Math.PI / 2, true);
+                shape.absarc(width - radius * 2, height - radius * 2, eps, Math.PI / 2, 0, true);
+                shape.absarc(width - radius * 2, eps, eps, 0, -Math.PI / 2, true);
+                let geometry = new THREE.ExtrudeBufferGeometry(shape, {
+                    depth: depth - radius0 * 2,
+                    bevelEnabled: true,
+                    bevelSegments: smoothness * 2,
+                    steps: 1,
+                    bevelSize: radius,
+                    bevelThickness: radius0,
+                    curveSegments: smoothness
+                });
+                geometry.center();
+                return geometry;
+            }
 
-            // Añadir bordes al cubo para mejor visualización isométrica
-            const edges = new THREE.EdgesGeometry(geometry);
-            const lineMaterial = new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 });
-            const wireframe = new THREE.LineSegments(edges, lineMaterial);
-            cube.add(wireframe);
+            // Crear grupo para la parcela de tierra
+            landPlot = new THREE.Group();
+
+            // Parámetros de la parcela
+            const plotWidth = 2;
+            const plotHeight = 2;
+            const plotDepth = 0.6; // Más corto en Z
+            const cornerRadius = 0.15; // Redondeo en las esquinas
+            const smoothness = 8;
+
+            // Parte superior (verde - césped)
+            const topHeight = plotHeight * 0.25;
+            const topGeometry = createRoundedBox(plotWidth, topHeight, plotDepth, cornerRadius, smoothness);
+            const topMaterial = new THREE.MeshPhongMaterial({
+                color: 0x4CAF50, // Verde césped
+                shininess: 30,
+                specular: 0x222222,
+                flatShading: false
+            });
+            const topPart = new THREE.Mesh(topGeometry, topMaterial);
+            topPart.position.y = plotHeight * 0.375;
+            topPart.castShadow = true;
+            topPart.receiveShadow = true;
+            landPlot.add(topPart);
+
+            // Parte inferior (marrón - tierra)
+            const bottomHeight = plotHeight * 0.75;
+            const bottomGeometry = createRoundedBox(plotWidth, bottomHeight, plotDepth, cornerRadius, smoothness);
+            const bottomMaterial = new THREE.MeshPhongMaterial({
+                color: 0x8B4513, // Marrón tierra
+                shininess: 20,
+                specular: 0x111111,
+                flatShading: false
+            });
+            const bottomPart = new THREE.Mesh(bottomGeometry, bottomMaterial);
+            bottomPart.position.y = -plotHeight * 0.125;
+            bottomPart.castShadow = true;
+            bottomPart.receiveShadow = true;
+            landPlot.add(bottomPart);
+
+            scene.add(landPlot);
 
             // Añadir un plano como suelo
             const planeGeometry = new THREE.PlaneGeometry(10, 10);
@@ -121,9 +168,18 @@
             scene.add(directionalLight);
 
             // Añadir luz puntual para efecto extra
-            const pointLight = new THREE.PointLight(0xff00ff, 0.5);
+            const pointLight = new THREE.PointLight(0xff9900, 0.3);
             pointLight.position.set(-5, 5, -5);
             scene.add(pointLight);
+
+            // Configurar controles (pan y zoom, sin rotación)
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableRotate = false; // Sin rotación - mantiene vista isométrica fija
+            controls.enableZoom = true; // Habilitar zoom
+            controls.enablePan = true; // Habilitar pan (arrastrar)
+            controls.zoomSpeed = 1.2;
+            controls.panSpeed = 0.8;
+            controls.screenSpacePanning = true;
 
             // Añadir ejes de referencia
             const axesHelper = new THREE.AxesHelper(3);
@@ -148,6 +204,9 @@
 
         function animate() {
             requestAnimationFrame(animate);
+
+            // Actualizar controles
+            controls.update();
 
             // Renderizar la escena
             renderer.render(scene, camera);
