@@ -41,16 +41,15 @@
 <body>
     <div id="info">
         <strong>Vista Isométrica - Cubo 3D</strong><br>
-        Arrastra para rotar la cámara
+        Estilo Age of Empires - Vista Fija
     </div>
 
     <!-- Three.js desde CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
     <script>
         // Configuración de la escena
-        let scene, camera, renderer, cube, controls;
+        let scene, camera, renderer, cube;
 
         function init() {
             // Crear la escena
@@ -126,13 +125,6 @@
             pointLight.position.set(-5, 5, -5);
             scene.add(pointLight);
 
-            // Añadir controles OrbitControls
-            controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true;
-            controls.dampingFactor = 0.05;
-            controls.enableZoom = true;
-            controls.enablePan = true;
-
             // Añadir ejes de referencia
             const axesHelper = new THREE.AxesHelper(3);
             scene.add(axesHelper);
@@ -156,12 +148,6 @@
 
         function animate() {
             requestAnimationFrame(animate);
-
-            // Rotar el cubo levemente para dar dinamismo
-            cube.rotation.y += 0.005;
-
-            // Actualizar controles
-            controls.update();
 
             // Renderizar la escena
             renderer.render(scene, camera);
